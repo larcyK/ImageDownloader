@@ -1,4 +1,4 @@
-import { createSignal } from 'solid-js';
+import { createSignal, For } from 'solid-js';
 import { HStack, InputForm, VStack } from './CommonTool';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -7,6 +7,7 @@ const ImageFetcher = () => {
   const [images, setImages] = createSignal<string[]>([]);
   const [selectedImages, setSelectedImages] = createSignal<string[]>([]);
   const [loading, setLoading] = createSignal(false);
+  const [downloading, setDownloading] = createSignal(false);
   const [error, setError] = createSignal('');
 
   const corsProxy = 'https://corsproxy.io/?';
@@ -63,6 +64,7 @@ const ImageFetcher = () => {
   };
 
   const downloadAsPdf = async () => {
+    setDownloading(true);
     const pdf = new jsPDF();
     
     for (let i = 0; i < selectedImages().length; i++) {
@@ -91,23 +93,14 @@ const ImageFetcher = () => {
     }
 
     pdf.save('images.pdf');
+    setDownloading(false);
   };
 
   return (
     <VStack alignItems='center' gap='10px' width='100%' height='auto'>
       <h1>サイト内画像列挙ツール</h1>
-      {/* <form onSubmit={fetchImages}>
-        <input
-          type="text"
-          placeholder="URLを入力してください"
-          value={url()}
-          onInput={(e) => setUrl(e.currentTarget.value)}
-        />
-        <button type="submit">画像を取得</button>
-      </form> */}
       <InputForm
         width='min(90%, 500px)'
-
         gap='0'
         onSubmit={fetchImages}
         placeholder="URLを入力してください"
@@ -117,20 +110,47 @@ const ImageFetcher = () => {
       {loading() && <p>読み込み中...</p>}
       {error() && <p>{error()}</p>}
 
-      <div style={{ display: 'flex', "flex-wrap": 'wrap' }}>
-        {images().map((imgSrc) => (
-          <div
-            key={imgSrc}
-            onClick={() => toggleImageSelection(imgSrc)}
-            style={{
-              border: selectedImages().includes(imgSrc) ? '2px solid blue' : '2px solid transparent',
-              padding: '5px',
-              cursor: 'pointer'
-            }}
+      <div style={{
+        display: 'grid',
+        "grid-template-columns": 'repeat(auto-fill, minmax(150px, 1fr))',
+        gap: '16px'
+      }}>
+        <For each={images()}>{(image, index) => (
+          <div 
+            style={{ position: 'relative', width: '100%', height: 'auto', cursor: 'pointer' }}
+            onClick={() => toggleImageSelection(image)}
           >
-            <img src={imgSrc} alt="Fetched Image" style={{ width: '100px', height: '100px' }} />
+            <img 
+              src={image} 
+              alt={`image ${index() + 1}`} 
+              style={{ 
+                width: '100%', 
+                height: 'auto', 
+                display: 'block',
+                border: selectedImages().includes(image) ? '2px solid green' : '2px solid transparent',
+              }} 
+            />
+            {selectedImages().includes(image) && (
+              <div style={{
+                position: 'absolute',
+                top: '8px',
+                left: '8px',
+                "background-color": 'green',
+                color: 'white',
+                width: '30px',
+                height: '30px',
+                display: 'flex',
+                "align-items": 'center',
+                "justify-content": 'center',
+                "border-radius": '50%',
+                "font-size": '14px',
+                "font-weight": 'bold'
+              }}>
+                {selectedImages().indexOf(image) + 1}
+              </div>
+            )}
           </div>
-        ))}
+        )}</For>
       </div>
 
       {selectedImages().length > 0 && (
@@ -138,6 +158,8 @@ const ImageFetcher = () => {
           選択した画像をPDFとしてダウンロード
         </button>
       )}
+
+      {downloading() && <p>ダウンロード中...</p>}
 
       <h2>選択された画像</h2>
       <ul>
