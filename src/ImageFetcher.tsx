@@ -11,6 +11,10 @@ const ImageFetcher = () => {
 
   const corsProxy = 'https://corsproxy.io/?';
 
+  const getProxiedUrl = (url: string) => {
+    return corsProxy + encodeURIComponent(url);
+  }
+
   const fetchImages = async (url: string) => {
     setLoading(true);
     setError('');
@@ -18,7 +22,7 @@ const ImageFetcher = () => {
     setSelectedImages([]);
 
     try {
-      const response = await fetch(corsProxy + encodeURIComponent(url));  // URLに対してGETリクエスト
+      const response = await fetch(getProxiedUrl(url));  // URLに対してGETリクエスト
       const htmlText = await response.text();  // HTMLの生データを取得
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlText, 'text/html');
@@ -50,24 +54,40 @@ const ImageFetcher = () => {
     });
   };
 
+  const getImageFormat = (imgSrc: string) => {
+    const extension = imgSrc.split('.').pop()?.toLowerCase();
+    if (extension === 'png') return 'PNG';
+    if (extension === 'jpeg' || extension === 'jpg') return 'JPEG';
+    if (extension === 'webp') return 'WEBP';
+    return 'JPEG'; // デフォルトはJPEGとする
+  };
+
   const downloadAsPdf = async () => {
     const pdf = new jsPDF();
     
     for (let i = 0; i < selectedImages().length; i++) {
       const img = selectedImages()[i];
-      
+
       // 画像を追加 (ページごとに一つずつ)
       if (i > 0) pdf.addPage();
       
-      // Canvasを使って画像をPDFに追加する
-      const imgElement = document.createElement('img');
-      imgElement.src = img;
-      document.body.appendChild(imgElement); // 一時的にDOMに追加
-      await html2canvas(imgElement).then(canvas => {
-        const imgData = canvas.toDataURL('image/jpeg');
-        pdf.addImage(imgData, 'JPEG', 10, 10, 180, 160);
+      // 画像をBase64データに変換
+      const imgData = await new Promise<string>((resolve, reject) => {
+        const imgElement = new Image();
+        imgElement.src = getProxiedUrl(img);
+        imgElement.crossOrigin = 'Anonymous'; // CORS対応
+        imgElement.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = imgElement.width;
+          canvas.height = imgElement.height;
+          ctx?.drawImage(imgElement, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg'));  // JPEGに変換してBase64データを取得
+        };
+        imgElement.onerror = () => reject('画像の読み込みに失敗しました');
       });
-      document.body.removeChild(imgElement); // DOMから削除
+
+      pdf.addImage(imgData, 'JPEG', 10, 10, 180, 160); // 画像をPDFに追加
     }
 
     pdf.save('images.pdf');
