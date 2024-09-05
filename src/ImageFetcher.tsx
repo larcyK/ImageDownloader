@@ -28,9 +28,15 @@ const ImageFetcher = () => {
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlText, 'text/html');
 
-      // 画像のURLを全て抽出
+      // ベースURLを取得
+      const baseUrl = new URL(url);
+      
+      // 画像のURLを全て抽出し、相対パスを絶対パスに変換
       const imgTags = doc.querySelectorAll('img');
-      const imageUrls = Array.from(imgTags).map(img => img.src);
+      const imageUrls = Array.from(imgTags).map(img => {
+        const imgSrc = img.getAttribute('src');
+        return imgSrc ? new URL(imgSrc, baseUrl).href : '';
+      }).filter(src => src);  // 空のsrcを除外
 
       if (imageUrls.length === 0) throw new Error('画像が見つかりませんでした');
 
@@ -69,9 +75,12 @@ const ImageFetcher = () => {
     
     for (let i = 0; i < selectedImages().length; i++) {
       const img = selectedImages()[i];
+      const format = getImageFormat(img);
 
       // 画像を追加 (ページごとに一つずつ)
       if (i > 0) pdf.addPage();
+      let width = 180;
+      let height = 160;
       
       // 画像をBase64データに変換
       const imgData = await new Promise<string>((resolve, reject) => {
@@ -83,13 +92,15 @@ const ImageFetcher = () => {
           const ctx = canvas.getContext('2d');
           canvas.width = imgElement.width;
           canvas.height = imgElement.height;
+          width = imgElement.width;
+          height = imgElement.height;
           ctx?.drawImage(imgElement, 0, 0);
-          resolve(canvas.toDataURL('image/jpeg'));  // JPEGに変換してBase64データを取得
+          resolve(canvas.toDataURL(`image/${format.toLowerCase()}`));  // JPEGに変換してBase64データを取得
         };
         imgElement.onerror = () => reject('画像の読み込みに失敗しました');
       });
 
-      pdf.addImage(imgData, 'JPEG', 10, 10, 180, 160); // 画像をPDFに追加
+      pdf.addImage(imgData, 'JPEG', 10, 10, 180, 180 * height / width);
     }
 
     pdf.save('images.pdf');
